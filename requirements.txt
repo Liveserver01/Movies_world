@@ -1,4 +1,7 @@
 pip install requests beautifulsoup4 pyrogram tgcrypto
+telethon
+flask
+
 
 
 
