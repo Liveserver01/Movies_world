@@ -4,5 +4,6 @@ tgcrypto
 flask
 python-Levenshtein
 requests
+telethon
 
 
