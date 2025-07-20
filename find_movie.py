@@ -1,44 +1,37 @@
-import requests
-from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
+import time
 
 def search_movie(query):
-    base_url = "https://vegamovies.frl"
-    search_url = f"{base_url}/?s={query.replace(' ', '+')}"
+    url = f"https://vegamovies.frl/?s={query.replace(' ', '+')}"
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-    }
+    options = Options()
+    options.add_argument("--headless")  # UI छुपाने के लिए
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0")
 
-    try:
-        with requests.Session() as session:
-            response = session.get(search_url, headers=headers, timeout=10)
-            response.raise_for_status()
+    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+    driver.get(url)
 
-            soup = BeautifulSoup(response.text, "html.parser")
-            results = soup.find_all("h2", class_="title")
+    time.sleep(5)  # JS लोड होने दो
 
-            if not results:
-                return ["❗ कोई मूवी नहीं मिली, शायद साइट का लेआउट बदल गया है।"]
+    movie_elements = driver.find_elements(By.CLASS_NAME, "title")
+    results = []
 
-            movie_links = []
-            for item in results:
-                a_tag = item.find("a")
-                if a_tag and a_tag.get("href"):
-                    title = a_tag.get_text(strip=True)
-                    link = a_tag["href"]
-                    movie_links.append(f"[{title}]({link})")
+    for element in movie_elements[:5]:
+        a_tag = element.find_element(By.TAG_NAME, "a")
+        title = a_tag.text.strip()
+        link = a_tag.get_attribute("href")
+        results.append(f"[{title}]({link})")
 
-            if not movie_links:
-                return ["❗ मूवी लिंक नहीं मिल पाए।"]
+    driver.quit()
 
-            return movie_links[:5]
+    if not results:
+        return ["❗ कोई रिज़ल्ट नहीं मिला, शायद साइट का लेआउट बदल गया है।"]
 
-    except requests.exceptions.Timeout:
-        return ["⏳ टाइमआउट हो गया। इंटरनेट या साइट स्लो हो सकती है।"]
-    except requests.exceptions.RequestException as e:
-        return [f"❌ रिक्वेस्ट एरर: {str(e)}"]
-    except Exception as e:
-        return [f"❌ Unknown Error: {str(e)}"]
+    return results
