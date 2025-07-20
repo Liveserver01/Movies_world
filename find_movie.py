@@ -6,25 +6,33 @@ from selenium.webdriver.common.by import By
 import time
 
 def search_movie(query):
-    options = Options()
-    options.add_argument("--headless")  # ब्राउज़र दिखेगा नहीं
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-gpu")
-    driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-gpu")
 
-    base_url = "https://vegamovies.frl"
-    search_url = f"{base_url}/?s={query.replace(' ', '+')}"
-    driver.get(search_url)
-    time.sleep(3)  # पेज लोड होने दो
+    driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
 
-    results = []
-    items = driver.find_elements(By.CSS_SELECTOR, "h2.title a")
-    for item in items[:5]:
-        title = item.text.strip()
-        link = item.get_attribute("href")
-        results.append(f"[{title}]({link})")
+    try:
+        base_url = "https://vegamovies.frl"
+        search_url = f"{base_url}/?s={query.replace(' ', '+')}"
+        driver.get(search_url)
+        time.sleep(3)
 
-    driver.quit()
+        results = []
+        items = driver.find_elements(By.CSS_SELECTOR, "h2.title a")
+        for item in items[:5]:
+            title = item.text.strip()
+            link = item.get_attribute("href")
+            results.append(f"[{title}]({link})")
+
+        if not results:
+            return ["❗ कोई मूवी नहीं मिली, शायद साइट बदल गई है।"]
+        return results
+
+    finally:
+        driver.quit()
+
 
     if not results:
         return ["❗ कोई मूवी नहीं मिली, शायद साइट बदल गई है।"]
