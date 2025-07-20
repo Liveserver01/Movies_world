@@ -4,5 +4,7 @@ flask
 fuzzywuzzy
 python-Levenshtein
 requests
+telethon
+beautifulsoup4
 
 
