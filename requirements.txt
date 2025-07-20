@@ -1,3 +1,8 @@
-telethon
+pyrogram==2.0.106
+tgcrypto
+flask
+fuzzywuzzy
+python-Levenshtein
 requests
-beautifulsoup4
+
+
