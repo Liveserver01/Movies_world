@@ -1,12 +1,17 @@
-# main.py
 import os
 import json
-import requests
 import re
 from base64 import b64encode
 from flask import Flask
 from threading import Thread
 from telethon import TelegramClient, events
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+import time
 
 # ========== Flask Setup ==========
 flask_app = Flask(__name__)
@@ -31,15 +36,31 @@ GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 # ========== Telegram Bot ==========
 bot = TelegramClient("vegamovies_bot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
-# ========== Search Function ==========
+# ========== Selenium Movie Search ==========
 def search_vegamovies(query):
-    url = f"https://vegamovies.frl/?s={query.replace(' ', '+')}"
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-    res = requests.get(url, headers=headers)
-    matches = re.findall(r'<a href="(https://vegamovies[^"]+)" rel="bookmark">\s*(.*?)\s*</a>', res.text)
-    return matches[:5]
+    try:
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        driver.get(f"https://vegamovies.frl/?s={query.replace(' ', '+')}")
+        time.sleep(3)
+
+        elements = driver.find_elements(By.CSS_SELECTOR, "h2.title a")
+        results = []
+
+        for ele in elements[:5]:
+            title = ele.text.strip()
+            link = ele.get_attribute("href")
+            results.append((link, title))
+
+        driver.quit()
+        return results
+
+    except Exception as e:
+        return []
 
 # ========== Local File Save ==========
 def load_local_movies():
@@ -55,6 +76,7 @@ def save_local_movies(data):
 
 # ========== GitHub Integration ==========
 def save_to_github(data):
+    import requests
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     headers = {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -120,9 +142,5 @@ async def find_handler(event):
 # ========== Start Everything ==========
 if __name__ == "__main__":
     print("🚀 Bot and Server Running...")
-
-    # Run Flask in background thread
     Thread(target=run_flask).start()
-
-    # Start Telegram bot
     bot.run_until_disconnected()
