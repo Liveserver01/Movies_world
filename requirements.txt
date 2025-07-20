@@ -1,4 +1,8 @@
-requests
 beautifulsoup4
 pyrogram
 tgcrypto
+flask
+python-Levenshtein
+requests
+
+
