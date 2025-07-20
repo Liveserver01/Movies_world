@@ -1,43 +1,46 @@
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 
 def search_movie(query):
-    url = f"https://vegamovies.frl/?s={query.replace(' ', '+')}"
+    base_url = "https://vegamovies.frl"
+    search_url = f"{base_url}/?s={query.replace(' ', '+')}"
 
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0")
+    options = Options()
+    options.add_argument("--headless")  # Headless mode: background में browser
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
 
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
-    driver.get(url)
+    try:
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.get(search_url)
 
-    time.sleep(5)  # wait for page to load
+        time.sleep(5)  # wait for JS content to load
 
-    movie_elements = driver.find_elements(By.CLASS_NAME, "title")
-    results = []
+        titles = driver.find_elements(By.CLASS_NAME, "title")
 
-    for element in movie_elements[:5]:
-        try:
-            a_tag = element.find_element(By.TAG_NAME, "a")
-            title = a_tag.text.strip()
-            link = a_tag.get_attribute("href")
-            results.append(f"[{title}]({link})")
-        except:
-            continue
+        if not titles:
+            driver.quit()
+            return ["❗ कोई मूवी नहीं मिली, साइट का HTML नहीं लोड हुआ।"]
 
-    driver.quit()
+        movie_links = []
+        for title in titles[:5]:
+            try:
+                a_tag = title.find_element(By.TAG_NAME, "a")
+                text = a_tag.text
+                link = a_tag.get_attribute("href")
+                movie_links.append(f"[{text}]({link})")
+            except:
+                continue
 
-    if not results:
-        return ["❗ कोई मूवी नहीं मिली, शायद साइट का लेआउट बदल गया है।"]
+        driver.quit()
 
-    return results
+        return movie_links if movie_links else ["❗ मूवी लिंक नहीं मिले।"]
 
-# Example call
-print(search_movie("Superman"))
+    except Exception as e:
+        return [f"❌ Error: {str(e)}"]
