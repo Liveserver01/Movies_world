@@ -1,43 +1,101 @@
+# vegamovies_bot.py
 import os
+import json
 import requests
-from bs4 import BeautifulSoup
+import re
+from base64 import b64encode
 from telethon import TelegramClient, events
 
-API_ID = int(os.environ.get("API_ID"))
+# ========== Config ==========
+API_ID = os.environ.get("API_ID")
 API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHANNEL = os.environ.get("CHANNEL")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_REPO = os.environ.get("GITHUB_REPO")
+GITHUB_FILE_PATH = os.environ.get("GITHUB_FILE_PATH", "movie_list.json")
+GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 
-def search_movie(query):
+# ========== Start Client ==========
+bot = TelegramClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+
+# ========== Helper Functions ==========
+def search_vegamovies(query):
     url = f"https://vegamovies.frl/?s={query.replace(' ', '+')}"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
     res = requests.get(url, headers=headers)
+    matches = re.findall(r'<a href="(https://vegamovies[^"]+)" rel="bookmark">\s*(.*?)\s*</a>', res.text)
+    return matches[:5]  # top 5 matches
 
-    if res.status_code != 200:
-        return None
+def save_to_github(data):
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json"
+    }
 
-    soup = BeautifulSoup(res.text, 'html.parser')
-    post = soup.find("h2", class_="entry-title")
-    if not post:
-        return None
+    # Check existing SHA
+    res = requests.get(url, headers=headers)
+    sha = res.json().get("sha") if res.status_code == 200 else None
 
-    title = post.text.strip()
-    link = post.find("a")["href"]
-    return f"🎬 **{title}**\n🔗 {link}"
+    encoded_content = b64encode(json.dumps(data, indent=4, ensure_ascii=False).encode()).decode()
 
-client = TelegramClient("bot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+    payload = {
+        "message": "Update movie_list.json",
+        "content": encoded_content,
+        "branch": GITHUB_BRANCH
+    }
+    if sha:
+        payload["sha"] = sha
 
-@client.on(events.NewMessage(pattern="/find (.+)"))
+    put_res = requests.put(url, headers=headers, json=payload)
+    return put_res.status_code in [200, 201]
+
+def load_local_movies():
+    path = "movie_list.json"
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def save_local_movies(data):
+    with open("movie_list.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+# ========== Bot Handlers ==========
+@bot.on(events.NewMessage(pattern="/find (.+)"))
 async def handler(event):
     query = event.pattern_match.group(1)
-    await event.respond("🔍 Searching...")
-    result = search_movie(query)
+    user_id = event.sender_id
 
-    if result:
-        await client.send_message(CHANNEL, result)
-        await event.respond("✅ Sent to channel.")
-    else:
-        await event.respond("❌ Not found.")
+    results = search_vegamovies(query)
+    if not results:
+        await event.reply("😞 Sorry, no movie found on Vegamovies.")
+        return
 
-print("🤖 Bot is running...")
-client.run_until_disconnected()
+    msg_lines = ["🎬 *Search Results:*\n"]
+    local_data = load_local_movies()
+
+    for i, (link, title) in enumerate(results, start=1):
+        msg_lines.append(f"{i}. [{title}]({link})")
+        local_data.append({"title": title.strip(), "msg_id": user_id, "url": link})
+
+    save_local_movies(local_data)
+    save_to_github(local_data)
+
+    await event.reply("\n".join(msg_lines), link_preview=False, parse_mode='md')
+
+@bot.on(events.NewMessage(pattern="/help"))
+async def help_handler(event):
+    help_text = """
+🤖 *Vegamovies Bot Help*
+
+Use `/find <movie name>` to search movies on vegamovies.frl
+Example: `/find Animal` or `/find War`
+    """
+    await event.reply(help_text, parse_mode='md')
+
+# ========== Start ==========
+print("✅ Bot is running...")
+bot.run_until_disconnected()
