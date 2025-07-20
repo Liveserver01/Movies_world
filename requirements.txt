@@ -1,10 +1,4 @@
-pyrogram==2.0.106
-tgcrypto
-flask
-fuzzywuzzy
-python-Levenshtein
-requests
-telethon
-beautifulsoup4
+pip install requests beautifulsoup4 pyrogram tgcrypto
+
 
 
