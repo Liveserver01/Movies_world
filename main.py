@@ -1,13 +1,26 @@
-# vegamovies_bot.py
+# main.py
 import os
 import json
 import requests
 import re
 from base64 import b64encode
+from flask import Flask
+from threading import Thread
 from telethon import TelegramClient, events
 
+# ========== Flask Setup ==========
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Vegamovies Bot is Alive! 🔥"
+
+# Background thread to keep Flask alive
+def run_flask():
+    app.run(host="0.0.0.0", port=8080)
+
 # ========== Config ==========
-API_ID = os.environ.get("API_ID")
+API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
@@ -15,7 +28,7 @@ GITHUB_REPO = os.environ.get("GITHUB_REPO")
 GITHUB_FILE_PATH = os.environ.get("GITHUB_FILE_PATH", "movie_list.json")
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 
-# ========== Start Client ==========
+# ========== Start Telegram Bot ==========
 bot = TelegramClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
 # ========== Helper Functions ==========
@@ -26,7 +39,7 @@ def search_vegamovies(query):
     }
     res = requests.get(url, headers=headers)
     matches = re.findall(r'<a href="(https://vegamovies[^"]+)" rel="bookmark">\s*(.*?)\s*</a>', res.text)
-    return matches[:5]  # top 5 matches
+    return matches[:5]
 
 def save_to_github(data):
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
@@ -34,8 +47,6 @@ def save_to_github(data):
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
-
-    # Check existing SHA
     res = requests.get(url, headers=headers)
     sha = res.json().get("sha") if res.status_code == 200 else None
 
@@ -91,11 +102,17 @@ async def help_handler(event):
     help_text = """
 🤖 *Vegamovies Bot Help*
 
-Use `/find <movie name>` to search movies on vegamovies.frl
+Use `/find <movie name>` to search movies on vegamovies.frl  
 Example: `/find Animal` or `/find War`
     """
     await event.reply(help_text, parse_mode='md')
 
-# ========== Start ==========
-print("✅ Bot is running...")
-bot.run_until_disconnected()
+# ========== Start Everything ==========
+if __name__ == "__main__":
+    print("✅ Starting Flask and Telegram Bot...")
+
+    # Run Flask in background
+    Thread(target=run_flask).start()
+
+    # Run Telegram bot
+    bot.run_until_disconnected()
