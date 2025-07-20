@@ -12,25 +12,33 @@ def search_movie(query):
         "Connection": "keep-alive",
     }
 
-    session = requests.Session()
     try:
-        response = session.get(search_url, headers=headers, timeout=10)
-        response.raise_for_status()
+        with requests.Session() as session:
+            response = session.get(search_url, headers=headers, timeout=10)
+            response.raise_for_status()
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        results = soup.find_all("h2", class_="title")
+            soup = BeautifulSoup(response.text, "html.parser")
+            results = soup.find_all("h2", class_="title")
 
-        movie_links = []
-        for item in results:
-            a_tag = item.find("a")
-            if a_tag:
-                title = a_tag.get_text(strip=True)
-                link = a_tag["href"]
-                movie_links.append(f"[{title}]({link})")
+            if not results:
+                return ["❗ कोई मूवी नहीं मिली, शायद साइट का लेआउट बदल गया है।"]
 
-        if not movie_links:
-            return ["❗ कोई रिज़ल्ट नहीं मिला।"]
+            movie_links = []
+            for item in results:
+                a_tag = item.find("a")
+                if a_tag and a_tag.get("href"):
+                    title = a_tag.get_text(strip=True)
+                    link = a_tag["href"]
+                    movie_links.append(f"[{title}]({link})")
 
-        return movie_links[:5]
+            if not movie_links:
+                return ["❗ मूवी लिंक नहीं मिल पाए।"]
+
+            return movie_links[:5]
+
+    except requests.exceptions.Timeout:
+        return ["⏳ टाइमआउट हो गया। इंटरनेट या साइट स्लो हो सकती है।"]
+    except requests.exceptions.RequestException as e:
+        return [f"❌ रिक्वेस्ट एरर: {str(e)}"]
     except Exception as e:
-        return [f"❌ Error: {str(e)}"]
+        return [f"❌ Unknown Error: {str(e)}"]
